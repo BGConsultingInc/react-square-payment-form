@@ -31,6 +31,42 @@ To change the default placeholders, you can pass the following props to the `Squ
 >
 ```
 
+## Set postal code on load
+
+Use the `postalCode` callback to set the postal code value for the convenience of the buyer, using information previously entered (for example, from a billing address).
+
+```
+const PaymentPage = () => {
+  function postalCode() {
+    const postalCode = '12345'; // your logic here
+    return postalCode;
+  }
+
+  return (
+    <SquarePaymentForm
+      postalCode={postalCode}
+    />
+  )
+}
+```
+
+## Focus element on load
+
+Use the `focusField` callback to set the input focus on a particular input field.
+
+```
+const PaymentPage = () => {
+  function focusField() {
+    return 'cardNumber';
+  }
+
+  return (
+    <SquarePaymentForm
+      focusField={focusField}
+    />
+  )
+}
+```
 
 ## Control when the nonce is requested
 
