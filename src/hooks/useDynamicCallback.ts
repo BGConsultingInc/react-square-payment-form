@@ -6,6 +6,6 @@ const useDynamicCallback = (callback: any) => {
     ref.current = callback;
   }, [callback]);
   return useCallback((...args) => ref.current(...args), []);
-}
+};
 
 export default useDynamicCallback;

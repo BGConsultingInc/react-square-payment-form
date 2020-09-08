@@ -108,4 +108,6 @@ interface SqPaymentFormInputConfiguration {
   // https://developer.squareup.com/docs/payment-form/cookbook/customize-form-styles#an-example-1
   inputStyle?: {};
 }
+
+export type PayState = 'loading' | 'unavailable' | 'ready';
 /* eslint-enable import/group-exports */

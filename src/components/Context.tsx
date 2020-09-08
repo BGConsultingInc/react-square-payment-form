@@ -1,17 +1,17 @@
 /* eslint-disable import/group-exports, filenames/match-exported, no-unused-vars */
 import * as React from 'react';
 
-import { SqVerificationDetails, SqError, SqVerificationResult } from './models';
+import { SqVerificationDetails, SqError, SqVerificationResult, PayState } from './models';
 
 export interface ContextInterface {
   /** Apple pay state*/
-  applePayState?: 'loading' | 'unavailable' | 'ready';
+  applePayState?: PayState;
   /** Unique form ID */
   formId?: string;
   /** Google pay state*/
-  googlePayState?: 'loading' | 'unavailable' | 'ready';
+  googlePayState?: PayState;
   /** Masterpass state */
-  masterpassState?: 'loading' | 'unavailable' | 'ready';
+  masterpassState?: PayState;
   /** Function that is called to create a nonce */
   onCreateNonce?: () => void;
   /** Function that is called to verify the buyer */
@@ -28,7 +28,7 @@ export interface ContextInterface {
  * This is available for developers who require more customization over their payment form implementation. Please refer to the
  * [customization](customization.md) page for usage details.
  */
-export const Context = React.createContext({
+export const Context = React.createContext<ContextInterface>({
   applePayState: 'loading',
   formId: '',
   googlePayState: 'loading',
