@@ -22,10 +22,16 @@ import Context from './Context';
  * Please view the [Payment Form Data Models](https://docs.connect.squareup.com/api/paymentform) for additional information.
  */
 export const SquarePaymentForm: React.FC<Props> = (props: Props) => {
-  const { build, error, context } = useSquarePaymentForm(props);
+  const context = useSquarePaymentForm(props);
+
+  const { build, error, destroy } = context;
 
   useEffect(() => {
     build();
+
+    return () => {
+      destroy();
+    };
   }, []);
 
   if (error) {

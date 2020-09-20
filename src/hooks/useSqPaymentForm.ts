@@ -105,7 +105,7 @@ interface State {
 }
 
 const defaultProps = {
-  apiWrapper: 'reactjs/0.7.0',
+  apiWrapper: 'reactjs/0.7.1',
   formId: 'sq-payment-form',
   inputClass: 'sq-input',
   inputStyles: [
@@ -149,14 +149,6 @@ const loadSqPaymentFormLibrary = (sandbox: boolean, onSuccess?: () => void, onEr
   document.body.appendChild(script);
 };
 
-interface SqPaymentHook {
-  build: () => void;
-  context: ContextInterface;
-  error: string | undefined;
-  loaded: boolean;
-  submit: () => void;
-}
-
 /**
  * Creates a Square Payment Form and renders form inputs to use inside of it.
  *
@@ -174,14 +166,15 @@ interface SqPaymentHook {
  *
  * Please view the [Payment Form Data Models](https://docs.connect.squareup.com/api/paymentform) for additional information.
  */
-const useSquarePaymentForm = (props: Props): SqPaymentHook => {
+const useSquarePaymentForm = (props: Props): ContextInterface => {
   const [applePayState, setApplePayState] = useState<PayState>('loading');
   const [googlePayState, setGooglePayState] = useState<PayState>('loading');
   const [masterpassState, setMasterpassState] = useState<PayState>('loading');
   const [errorMessage, setErrorMessage] = useState('');
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const paymentFormRef = useRef<SqPaymentForm | undefined>(undefined);
-  const [built, setBuilt] = useState(false);
+  const [build, setBuild] = useState(false);
+  const [destroy, setDestroy] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const { inputStyles = defaultProps.inputStyles, inputClass = defaultProps.inputClass } = props;
@@ -259,11 +252,7 @@ const useSquarePaymentForm = (props: Props): SqPaymentHook => {
     }
   };
 
-  const paymentFormLoaded = () => {
-    setLoaded(true);
-  };
-
-  function buildSqPaymentFormConfiguration(props: Props): SqPaymentFormConfiguration {
+  const buildSqPaymentFormConfiguration = (props: Props): SqPaymentFormConfiguration => {
     const config: SqPaymentFormConfiguration = {
       apiWrapper: props.apiWrapper || defaultProps.apiWrapper,
       applicationId: props.applicationId,
@@ -273,7 +262,9 @@ const useSquarePaymentForm = (props: Props): SqPaymentHook => {
         createPaymentRequest: props.createPaymentRequest,
         inputEventReceived: props.inputEventReceived,
         methodsSupported: props.methodsSupported,
-        paymentFormLoaded,
+        paymentFormLoaded: () => {
+          setLoaded(true);
+        },
         shippingContactChanged: props.shippingContactChanged,
         shippingOptionChanged: props.shippingOptionChanged,
         unsupportedBrowserDetected: props.unsupportedBrowserDetected,
@@ -339,8 +330,9 @@ const useSquarePaymentForm = (props: Props): SqPaymentHook => {
       }
     }
     return config;
-  }
+  };
 
+  // load the SquareUp Payment Form Library when the component is first mounted
   useEffect(() => {
     if (scriptLoaded) {
       return;
@@ -353,58 +345,37 @@ const useSquarePaymentForm = (props: Props): SqPaymentHook => {
     );
   }, []);
 
-  // build the SqPaymentForm object and manage it's lifecycle.
+  // build the SqPaymentForm object
   useEffect(() => {
-    const cleanup = () => {
-      const paymentForm = paymentFormRef.current;
-
-      if (!paymentForm) {
-        return;
-      }
-
-      try {
-        paymentForm && paymentForm.destroy();
-      } finally {
-        paymentFormRef.current = undefined;
-
-        setLoaded(false);
-        setBuilt(false);
-      }
-    };
-
-    if (built === false) {
-      return cleanup;
+    if (!build) {
+      return;
     }
 
-    if (paymentFormRef.current !== undefined) {
-      // super odd if we get here
-      setErrorMessage('Square payment form has already been initialized');
+    if (!scriptLoaded) {
+      setErrorMessage('Called to build SqPaymentForm before script was loaded');
 
-      return cleanup;
+      return;
+    }
+
+    if (paymentFormRef.current) {
+      setErrorMessage('Square payment already initialized when building');
+
+      return;
     }
 
     if (errorMessage.length > 0) {
       // there's already an error
-      return cleanup;
+      return;
     }
 
-    let paymentForm = null;
+    const paymentForm = (paymentFormRef.current = new SqPaymentForm(
+      buildSqPaymentFormConfiguration({ methodsSupported, ...props })
+    ));
 
-    try {
-      paymentForm = new SqPaymentForm(buildSqPaymentFormConfiguration({ methodsSupported, ...props }));
-      paymentForm.build();
-    } catch (error) {
-      const errorMessage = error.message || 'Unable to build Square payment form';
-      setErrorMessage(errorMessage);
+    paymentForm.build();
+  }, [build, scriptLoaded, paymentFormRef]);
 
-      return cleanup;
-    }
-
-    paymentFormRef.current = paymentForm;
-
-    return cleanup;
-  }, [built, paymentFormRef]);
-
+  // once the underlying form object has been loaded, do some final initialization
   useEffect(() => {
     if (!loaded) {
       return;
@@ -421,8 +392,8 @@ const useSquarePaymentForm = (props: Props): SqPaymentHook => {
     props.postalCode && paymentForm.setPostalCode(props.postalCode());
     props.focusField && paymentForm.focus(props.focusField());
 
-    props.paymentFormLoaded && props.paymentFormLoaded()
-  }, [loaded, paymentFormRef])
+    props.paymentFormLoaded && props.paymentFormLoaded();
+  }, [loaded, paymentFormRef]);
 
   useEffect(() => {
     const paymentForm = paymentFormRef.current;
@@ -440,19 +411,50 @@ const useSquarePaymentForm = (props: Props): SqPaymentHook => {
     srcBtn.style.backgroundImage = `url(${imageUrl})`;
   }, [paymentFormRef, masterpassState]);
 
+  // clean up the form
+  useEffect(() => {
+    if (!build) {
+      return;
+    }
+
+    if (!destroy) {
+      return;
+    }
+
+    let paymentForm = paymentFormRef.current;
+
+    if (!paymentForm) {
+      setErrorMessage('Square payment form is not initialized');
+
+      return;
+    }
+
+    if (errorMessage.length > 0) {
+      // eslint-disable-next-line no-console
+      console.error('Already an error');
+
+      return;
+    }
+
+    paymentForm.destroy();
+    setBuild(false);
+    setLoaded(false);
+    setDestroy(false);
+
+    paymentForm = paymentFormRef.current = undefined;
+  }, [build, destroy, paymentFormRef]);
+
   return {
-    build: useCallback(() => setBuilt(true), []),
-    context: {
-      applePayState,
-      formId: props.formId || defaultProps.formId,
-      googlePayState,
-      masterpassState,
-      onCreateNonce: createNonce,
-      onVerifyBuyer: verifyBuyer,
-    },
+    applePayState,
+    build: useCallback(() => setBuild(true), []),
+    destroy: useCallback(() => setDestroy(true), []),
     error: errorMessage,
+    formId: props.formId || defaultProps.formId,
+    googlePayState,
     loaded,
-    submit: createNonce,
+    masterpassState,
+    onCreateNonce: createNonce,
+    onVerifyBuyer: verifyBuyer,
   };
 };
 
